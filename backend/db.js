@@ -10,18 +10,14 @@
 const mysql = require('mysql2/promise');
 require('dotenv').config(); 
 
-// Create a pool of connections
 const pool = mysql.createPool({
-  host: process.env.DB_HOST || 'localhost',
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || 'gaurav@5395', // ideally should strictly use process.env in production
-  database: process.env.DB_NAME || 'job_tracker',
-  
-  // Pool Options
-  waitForConnections: true, // If all connections are busy, wait for one to free up
-  connectionLimit: 10,      // Max number of simultaneous connections
-  queueLimit: 0             // No limit on waiting requests
+  host: process.env.DB_HOST,     
+  user: process.env.DB_USER,      
+  password: process.env.DB_PASSWORD, 
+  database: process.env.DB_NAME,  
+  port: process.env.DB_PORT,      
+  waitForConnections: true,
+  connectionLimit: 10
 });
 
-// Export the pool so it can be used in server.js
 module.exports = pool;

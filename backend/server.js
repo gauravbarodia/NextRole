@@ -3,10 +3,16 @@ const cors = require('cors');
 const db = require('./db');
 
 const app = express();
+
+// --- FIX 1: Add express.json() ---
+// Without this, req.body will be undefined and POST/PUT will crash
+app.use(express.json()); 
+
+// --- FIX 2: Add "https://" to the Railway URL ---
 app.use(cors({
   origin: [
-    "http://localhost:5173",                      
-    "nextrole-production.up.railway.app"   
+    "http://localhost:5173",                  
+    "https://nextrole-production.up.railway.app" // <--- Must have https://
   ],
   credentials: true
 }));
@@ -26,6 +32,7 @@ app.use(requireAuth);
 // 1. GET: Fetch User's Jobs
 app.get('/jobs', async (req, res) => {
   const { search, status } = req.query;
+  // Use params array to prevent SQL injection
   let sql = 'SELECT * FROM applications WHERE user_id = ?';
   const params = [req.userId];
 
@@ -51,7 +58,7 @@ app.get('/jobs', async (req, res) => {
 
 // 2. POST: Add Job
 app.post('/jobs', async (req, res) => {
-  const { company, role, status } = req.body;
+  const { company, role, status } = req.body; // Needs express.json() to work!
   try {
     const [existing] = await db.query(
       'SELECT * FROM applications WHERE company = ? AND role = ? AND user_id = ?', 
@@ -65,9 +72,11 @@ app.post('/jobs', async (req, res) => {
       [company, role, status || 'Applied', req.userId]
     );
     
+    // Fetch the newly created job to return it
     const [newRow] = await db.query('SELECT * FROM applications WHERE id = ?', [result.insertId]);
     res.status(201).json(newRow[0]);
   } catch (err) {
+    console.error(err); // Log error for debugging
     res.status(500).json({ error: err.message });
   }
 });
@@ -84,9 +93,7 @@ app.put('/jobs/:id', async (req, res) => {
   }
 });
 
-// --- FIX IS HERE: "DELETE ALL" MUST BE BEFORE "DELETE :ID" ---
-
-// 4. DELETE ALL (Moved UP)
+// 4. DELETE ALL (Correctly placed before /:id)
 app.delete('/jobs/all', async (req, res) => {
   const { status } = req.query;
   try {
@@ -101,7 +108,7 @@ app.delete('/jobs/all', async (req, res) => {
   }
 });
 
-// 5. DELETE Single Job (Moved DOWN)
+// 5. DELETE Single Job
 app.delete('/jobs/:id', async (req, res) => {
   try {
     await db.query('DELETE FROM applications WHERE id = ? AND user_id = ?', 
