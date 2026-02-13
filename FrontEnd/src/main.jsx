@@ -1,10 +1,20 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
-import './App.css'  /* <--- MAKE SURE THIS IS HERE */
+import './index.css'
+import { ClerkProvider } from '@clerk/clerk-react'
+
+// REPLACE THIS WITH YOUR REAL KEY FROM STEP 2
+const PUBLISHABLE_KEY = "pk_test_Ym9sZC1hZGRlci05Ni5jbGVyay5hY2NvdW50cy5kZXYk";
+
+if (!PUBLISHABLE_KEY) {
+  throw new Error("Missing Publishable Key")
+}
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <App />
+    <ClerkProvider publishableKey={PUBLISHABLE_KEY}>
+      <App />
+    </ClerkProvider>
   </React.StrictMode>,
 )
