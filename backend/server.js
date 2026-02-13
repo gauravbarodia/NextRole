@@ -12,7 +12,6 @@ app.use(express.json());
 app.use(cors({
   origin: [
     "http://localhost:5173",                  
-    "https://nextrole-production.up.railway.app",
     "https://frontend-production-49cc.up.railway.app"
   ],
   credentials: true
