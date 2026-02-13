@@ -178,7 +178,7 @@ function App() {
               variables: {
                 colorPrimary: "#ffaa00",
                 colorBackground: "#121212",
-                colorText: "#ffffff",
+                colorText: "#ffaa00",
                 colorInputBackground: "#000000",
                 colorInputText: "#ffaa00",
                 borderRadius: "8px",
