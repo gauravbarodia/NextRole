@@ -100,8 +100,8 @@ function App() {
 
   const addJob = async (jobData) => {
     try {
-      const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
-
+     const API_URL = import.meta.env.VITE_API_URL;
+      // const response = await fetch(`${API_URL}/jobs`);
       // 2. Use it in the fetch
       const response = await fetch(`${API_URL}/jobs`, {
         method: "POST",
