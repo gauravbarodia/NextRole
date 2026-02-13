@@ -7,8 +7,6 @@ function JobForm({ onAdd }) {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!form.company || !form.role) return;
-    
-    // Default to 'Applied'
     onAdd({ ...form, status: 'Applied' });
     setForm({ company: '', role: '' });
   };
@@ -16,31 +14,28 @@ function JobForm({ onAdd }) {
   return (
     <form onSubmit={handleSubmit} className="form-stack">
       <div>
-        <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', color: '#64748b' }}>Company</label>
+        <label style={{ display: 'block', marginBottom: '8px', color: '#a1a1aa', fontSize: '0.9rem' }}>Company</label>
         <input 
-          className="input-styled input-large"
+          className="input-styled"
           placeholder="e.g. Google" 
           value={form.company}
           onChange={(e) => setForm({...form, company: e.target.value})}
-          autoFocus // Automatically focus when popup opens
+          autoFocus 
         />
       </div>
-
       <div>
-        <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', color: '#64748b' }}>Role</label>
+        <label style={{ display: 'block', marginBottom: '8px', color: '#a1a1aa', fontSize: '0.9rem' }}>Role</label>
         <input 
-          className="input-styled input-large"
+          className="input-styled"
           placeholder="e.g. Frontend Engineer" 
           value={form.role}
           onChange={(e) => setForm({...form, role: e.target.value})}
         />
       </div>
-
-      <button type="submit" className="btn-primary btn-large" style={{ marginTop: '10px' }}>
-        <PlusCircle size={22} /> Add Application
+      <button type="submit" className="btn-primary" style={{ marginTop: '10px' }}>
+        <PlusCircle size={20} /> Add Application
       </button>
     </form>
   );
 }
-
 export default JobForm;

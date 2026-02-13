@@ -1,46 +1,46 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Filter, X, Plus } from 'lucide-react';
-import { SignedIn, SignedOut, SignIn, UserButton, useUser } from "@clerk/clerk-react"; // Import Clerk
+import { Search, X, Plus } from 'lucide-react';
+import { SignedIn, SignedOut, SignIn, UserButton, useUser } from "@clerk/clerk-react";
+import { dark } from '@clerk/themes';
 import Header from './components/Header';
 import JobForm from './components/JobForm';
 import JobTable from './components/JobTable';
 import './App.css'; 
 
 function App() {
-  const { user, isLoaded } = useUser(); // Get current user
+  const { user, isLoaded } = useUser();
   const [jobs, setJobs] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
   const [showModal, setShowModal] = useState(false);
+  
+  // Search State
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const searchInputRef = useRef(null);
 
-  // Helper to attach User ID to every request
   const getHeaders = () => ({
     'Content-Type': 'application/json',
-    'user-id': user?.id // Send the Clerk User ID
+    'user-id': user?.id 
   });
 
   useEffect(() => {
-    if (!user) return; // Don't fetch if not logged in
-
+    if (!user) return;
     const fetchJobs = async () => {
       const query = new URLSearchParams();
       if (searchTerm) query.append('search', searchTerm);
       if (filterStatus && filterStatus !== 'All') query.append('status', filterStatus);
 
       try {
-        const res = await fetch(`http://localhost:5000/jobs?${query.toString()}`, {
-          headers: getHeaders() // Add headers here
-        });
+        const res = await fetch(`http://localhost:5000/jobs?${query.toString()}`, { headers: getHeaders() });
         const data = await res.json();
         setJobs(Array.isArray(data) ? data : []);
       } catch (err) { console.error(err); }
     };
     
+    // Debounce search slightly
     const timeoutId = setTimeout(fetchJobs, 300);
     return () => clearTimeout(timeoutId);
-  }, [searchTerm, filterStatus, user]); // Re-run when user changes
+  }, [searchTerm, filterStatus, user]);
 
   const addJob = async (jobData) => {
     try {
@@ -78,45 +78,88 @@ function App() {
     if(res.ok) filterStatus === 'All' ? setJobs([]) : setJobs(jobs.filter(j => j.status !== filterStatus));
   };
 
-  if (!isLoaded) return <div style={{color:'white', padding: 20}}>Loading...</div>;
+  // --- NEW: Handle "Enter" and "Escape" keys ---
+  const handleSearchKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      setIsSearchOpen(false); // Close on Enter
+    }
+    if (e.key === 'Escape') {
+      setIsSearchOpen(false); // Close on Escape
+      setSearchTerm('');      // Optional: Clear text on Escape
+    }
+  };
+
+  const closeSearch = () => {
+    setIsSearchOpen(false);
+    setSearchTerm('');
+  };
+
+  if (!isLoaded) return <div style={{color:'#ffaa00', padding: 40, textAlign: 'center'}}>Loading NextRole...</div>;
 
   return (
     <>
-      {/* 1. If Signed OUT: Show Login Page */}
       <SignedOut>
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#050505' }}>
-          <SignIn />
+          <SignIn 
+            appearance={{
+              baseTheme: dark,
+              variables: {
+                colorPrimary: '#ffaa00',
+                colorBackground: '#121212',
+                colorText: '#ffffff',
+                colorInputBackground: '#000000',
+                colorInputText: '#ffaa00',
+                borderRadius: '8px'
+              }
+            }}
+          />
         </div>
       </SignedOut>
 
-      {/* 2. If Signed IN: Show Dashboard */}
       <SignedIn>
         <div className="container">
           <Header jobs={jobs} onFilterSelect={setFilterStatus}>
-            <div className="action-bar">
-               <div className="button-group">
+            <div className="button-group" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                
+                {/* ADD JOB BUTTON */}
                 <button className="btn-action btn-add" onClick={() => setShowModal(true)}>
                   <Plus size={20} /> Add Job
                 </button>
+                
+                {/* SEARCH TOGGLE LOGIC */}
                 {!isSearchOpen ? (
-                  <button className="btn-action btn-search" onClick={() => setIsSearchOpen(true)}>
+                  <button className="btn-action" onClick={() => { setIsSearchOpen(true); setTimeout(() => searchInputRef.current?.focus(), 100); }}>
                     <Search size={20} /> Search
                   </button>
                 ) : (
                   <div className="expanded-section search-mode">
                     <div className="input-group">
                       <Search size={18} className="icon-left" />
-                      <input ref={searchInputRef} className="input-clean" placeholder="Search..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} autoFocus />
+                      <input 
+                        ref={searchInputRef} 
+                        className="input-clean" 
+                        placeholder="Type & Press Enter..." 
+                        value={searchTerm} 
+                        onChange={(e) => setSearchTerm(e.target.value)} 
+                        onKeyDown={handleSearchKeyDown} /* <--- ADDED THIS */
+                      />
                     </div>
-                    <button onClick={() => { setIsSearchOpen(false); setSearchTerm(''); }} className="btn-close-circle"><X size={18}/></button>
+                    {/* CLOSE BUTTON */}
+                    <button onClick={closeSearch} className="btn-close-circle">
+                      <X size={18}/>
+                    </button>
                   </div>
                 )}
                 
-                {/* User Profile Button */}
+                {/* USER PROFILE */}
                 <div style={{ marginLeft: '10px' }}>
-                  <UserButton />
+                  <UserButton 
+                    appearance={{
+                      baseTheme: dark,
+                      variables: { colorPrimary: '#ffaa00' }
+                    }}
+                  />
                 </div>
-              </div>
             </div>
           </Header>
 

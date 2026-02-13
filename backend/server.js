@@ -7,24 +7,20 @@ app.use(cors());
 app.use(express.json());
 
 // --- MIDDLEWARE: Check for User ID ---
-// Every request from frontend MUST send a 'user-id' header
 const requireAuth = (req, res, next) => {
   const userId = req.headers['user-id'];
   if (!userId) {
     return res.status(401).json({ error: 'Unauthorized: No User ID found' });
   }
-  req.userId = userId; // Save it to use in routes
+  req.userId = userId;
   next();
 };
 
-// Apply to ALL routes
 app.use(requireAuth);
 
-// 1. GET: Fetch ONLY this user's jobs
+// 1. GET: Fetch User's Jobs
 app.get('/jobs', async (req, res) => {
   const { search, status } = req.query;
-  
-  // Start with filtering by USER ID
   let sql = 'SELECT * FROM applications WHERE user_id = ?';
   const params = [req.userId];
 
@@ -48,11 +44,10 @@ app.get('/jobs', async (req, res) => {
   }
 });
 
-// 2. POST: Add job (With User ID)
+// 2. POST: Add Job
 app.post('/jobs', async (req, res) => {
   const { company, role, status } = req.body;
   try {
-    // Check duplicates only for THIS user
     const [existing] = await db.query(
       'SELECT * FROM applications WHERE company = ? AND role = ? AND user_id = ?', 
       [company, role, req.userId]
@@ -62,7 +57,7 @@ app.post('/jobs', async (req, res) => {
 
     const [result] = await db.query(
       'INSERT INTO applications (company, role, status, date_applied, user_id) VALUES (?, ?, ?, NOW(), ?)',
-      [company, role, status, req.userId]
+      [company, role, status || 'Applied', req.userId]
     );
     
     const [newRow] = await db.query('SELECT * FROM applications WHERE id = ?', [result.insertId]);
@@ -72,7 +67,7 @@ app.post('/jobs', async (req, res) => {
   }
 });
 
-// 3. PUT: Update Status (Ensure user owns the job)
+// 3. PUT: Update Status
 app.put('/jobs/:id', async (req, res) => {
   const { status } = req.body;
   try {
@@ -84,18 +79,9 @@ app.put('/jobs/:id', async (req, res) => {
   }
 });
 
-// 4. DELETE Single Job (Ensure user owns it)
-app.delete('/jobs/:id', async (req, res) => {
-  try {
-    await db.query('DELETE FROM applications WHERE id = ? AND user_id = ?', 
-      [req.params.id, req.userId]);
-    res.json({ message: 'Deleted' });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+// --- FIX IS HERE: "DELETE ALL" MUST BE BEFORE "DELETE :ID" ---
 
-// 5. DELETE ALL (Only this user's jobs)
+// 4. DELETE ALL (Moved UP)
 app.delete('/jobs/all', async (req, res) => {
   const { status } = req.query;
   try {
@@ -110,4 +96,16 @@ app.delete('/jobs/all', async (req, res) => {
   }
 });
 
-app.listen(5000, () => console.log('Server running on 5000'));
+// 5. DELETE Single Job (Moved DOWN)
+app.delete('/jobs/:id', async (req, res) => {
+  try {
+    await db.query('DELETE FROM applications WHERE id = ? AND user_id = ?', 
+      [req.params.id, req.userId]);
+    res.json({ message: 'Deleted' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+const PORT = 5000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

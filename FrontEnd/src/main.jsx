@@ -1,11 +1,12 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
-import './index.css'
+import './index.css' // Ensure this exists, or remove if unused
+import './App.css'   // We use this one
 import { ClerkProvider } from '@clerk/clerk-react'
 
-// REPLACE THIS WITH YOUR REAL KEY FROM STEP 2
-const PUBLISHABLE_KEY = "pk_test_Ym9sZC1hZGRlci05Ni5jbGVyay5hY2NvdW50cy5kZXYk";
+// REPLACE WITH YOUR KEY
+const PUBLISHABLE_KEY = "pk_test_Ym9sZC1hZGRlci05Ni5jbGVyay5hY2NvdW50cy5kZXYk"; 
 
 if (!PUBLISHABLE_KEY) {
   throw new Error("Missing Publishable Key")
