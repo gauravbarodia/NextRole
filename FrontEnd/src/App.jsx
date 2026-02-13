@@ -9,8 +9,14 @@
  */
 
 import React, { useState, useEffect, useRef } from "react";
-import { Search, X, Plus, Home } from "lucide-react"; 
-import { SignedIn, SignedOut, SignIn, UserButton, useUser } from "@clerk/clerk-react";
+import { Search, X, Plus, Home } from "lucide-react";
+import {
+  SignedIn,
+  SignedOut,
+  SignIn,
+  UserButton,
+  useUser,
+} from "@clerk/clerk-react";
 import { dark } from "@clerk/themes";
 
 // Component Imports
@@ -24,16 +30,16 @@ import "./App.css";
 function App() {
   // --- 1. Authentication & State ---
   const { user, isLoaded } = useUser();
-  
+
   // Data State
   const [jobs, setJobs] = useState([]);
-  
+
   // UI State
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("All"); // 'All', 'Applied', 'Interview', etc.
-  const [showModal, setShowModal] = useState(false);       // Toggles the "Add Job" modal
+  const [showModal, setShowModal] = useState(false); // Toggles the "Add Job" modal
   const [isSearchOpen, setIsSearchOpen] = useState(false); // Toggles the Search Bar visibility
-  
+
   const searchInputRef = useRef(null); // Used to auto-focus input when search opens
 
   // --- 2. Helper Functions ---
@@ -43,9 +49,9 @@ function App() {
    * Clears search, resets filters, and closes search bar.
    */
   const goHome = () => {
-    setSearchTerm(""); 
-    setFilterStatus("All"); 
-    setIsSearchOpen(false); 
+    setSearchTerm("");
+    setFilterStatus("All");
+    setIsSearchOpen(false);
   };
 
   /**
@@ -71,10 +77,14 @@ function App() {
       // Build Query String
       const query = new URLSearchParams();
       if (searchTerm) query.append("search", searchTerm);
-      if (filterStatus && filterStatus !== "All") query.append("status", filterStatus);
+      if (filterStatus && filterStatus !== "All")
+        query.append("status", filterStatus);
 
       try {
-        const res = await fetch(`http://localhost:5000/jobs?${query.toString()}`, { headers: getHeaders() });
+        const res = await fetch(
+          `http://localhost:5000/jobs?${query.toString()}`,
+          { headers: getHeaders() },
+        );
         const data = await res.json();
         setJobs(Array.isArray(data) ? data : []);
       } catch (err) {
@@ -90,7 +100,10 @@ function App() {
 
   const addJob = async (jobData) => {
     try {
-      const response = await fetch("http://localhost:5000/jobs", {
+      const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+
+      // 2. Use it in the fetch
+      const response = await fetch(`${API_URL}/jobs`, {
         method: "POST",
         headers: getHeaders(),
         body: JSON.stringify(jobData),
@@ -99,7 +112,9 @@ function App() {
       // Handle Duplicates (HTTP 409)
       if (response.status === 409) {
         const data = await response.json();
-        const confirmUpdate = window.confirm(`Duplicate! Update status of ${data.job.company}?`);
+        const confirmUpdate = window.confirm(
+          `Duplicate! Update status of ${data.job.company}?`,
+        );
         if (confirmUpdate) updateStatus(data.job.id, jobData.status);
         return;
       }
@@ -116,8 +131,10 @@ function App() {
 
   const updateStatus = async (id, newStatus) => {
     // 1. Optimistic UI Update (Update state immediately)
-    setJobs(jobs.map((job) => (job.id === id ? { ...job, status: newStatus } : job)));
-    
+    setJobs(
+      jobs.map((job) => (job.id === id ? { ...job, status: newStatus } : job)),
+    );
+
     // 2. API Call
     await fetch(`http://localhost:5000/jobs/${id}`, {
       method: "PUT",
@@ -132,7 +149,7 @@ function App() {
       method: "DELETE",
       headers: getHeaders(),
     });
-    
+
     // 2. Update UI
     setJobs(jobs.filter((job) => job.id !== id));
   };
@@ -140,9 +157,9 @@ function App() {
   const deleteAllJobs = async () => {
     let url = "http://localhost:5000/jobs/all";
     if (filterStatus !== "All") url += `?status=${filterStatus}`;
-    
+
     const res = await fetch(url, { method: "DELETE", headers: getHeaders() });
-    
+
     if (res.ok) {
       // If filtering, only remove those visible. If 'All', clear everything.
       filterStatus === "All"
@@ -165,7 +182,8 @@ function App() {
   };
 
   // Loading State
-  if (!isLoaded) return <div className="loading-screen">Loading NextRole...</div>;
+  if (!isLoaded)
+    return <div className="loading-screen">Loading NextRole...</div>;
 
   return (
     <>
@@ -191,18 +209,23 @@ function App() {
       {/* State: User Logged In */}
       <SignedIn>
         <div className="container">
-          
           {/* --- HEADER SECTION --- */}
           <Header jobs={jobs} onFilterSelect={setFilterStatus} onHome={goHome}>
             <div className="button-group">
-              
               {/* Home Button */}
-              <button className="btn-action" onClick={goHome} title="Reset to Home">
+              <button
+                className="btn-action"
+                onClick={goHome}
+                title="Reset to Home"
+              >
                 <Home size={20} />
               </button>
 
               {/* Add Job Button */}
-              <button className="btn-action btn-add" onClick={() => setShowModal(true)}>
+              <button
+                className="btn-action btn-add"
+                onClick={() => setShowModal(true)}
+              >
                 <Plus size={20} /> Add Application
               </button>
 
@@ -238,7 +261,12 @@ function App() {
 
               {/* User Profile Bubble */}
               <div style={{ marginLeft: "10px" }}>
-                <UserButton appearance={{ baseTheme: dark, variables: { colorPrimary: "#ffaa00" } }} />
+                <UserButton
+                  appearance={{
+                    baseTheme: dark,
+                    variables: { colorPrimary: "#ffaa00" },
+                  }}
+                />
               </div>
             </div>
           </Header>
@@ -254,10 +282,16 @@ function App() {
           {/* --- MODAL SECTION --- */}
           {showModal && (
             <div className="modal-overlay" onClick={() => setShowModal(false)}>
-              <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+              <div
+                className="modal-content"
+                onClick={(e) => e.stopPropagation()}
+              >
                 <div className="modal-header">
                   <h2 className="modal-title">New Application</h2>
-                  <button onClick={() => setShowModal(false)} className="btn-close-section">
+                  <button
+                    onClick={() => setShowModal(false)}
+                    className="btn-close-section"
+                  >
                     <X size={24} />
                   </button>
                 </div>
