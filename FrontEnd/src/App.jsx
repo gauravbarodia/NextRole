@@ -1,14 +1,4 @@
-/**
- * Main Application Component
- * * This component acts as the central controller for the application.
- * It manages:
- * 1. Global State (Jobs list, Search term, Filter status)
- * 2. API Communication (Fetching, Adding, Updating, Deleting jobs)
- * 3. User Authentication (via Clerk)
- * 4. Layout Composition (Header, Table, Modals)
- */
-
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Search, X, Plus, Home } from "lucide-react";
 import {
   SignedIn,
@@ -28,216 +18,174 @@ import JobTable from "./components/JobTable";
 import "./App.css";
 
 function App() {
-  // --- 1. Authentication & State ---
+  // --- 1. Configuration & Authentication ---
   const { user, isLoaded } = useUser();
+  
+  // Use Railway URL if available, otherwise fallback to local for development
+  const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
   // Data State
   const [jobs, setJobs] = useState([]);
 
   // UI State
   const [searchTerm, setSearchTerm] = useState("");
-  const [filterStatus, setFilterStatus] = useState("All"); // 'All', 'Applied', 'Interview', etc.
-  const [showModal, setShowModal] = useState(false); // Toggles the "Add Job" modal
-  const [isSearchOpen, setIsSearchOpen] = useState(false); // Toggles the Search Bar visibility
+  const [filterStatus, setFilterStatus] = useState("All");
+  const [showModal, setShowModal] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
 
-  const searchInputRef = useRef(null); // Used to auto-focus input when search opens
+  const searchInputRef = useRef(null);
 
   // --- 2. Helper Functions ---
 
-  /**
-   * Resets the dashboard view to the default state.
-   * Clears search, resets filters, and closes search bar.
-   */
   const goHome = () => {
     setSearchTerm("");
     setFilterStatus("All");
     setIsSearchOpen(false);
   };
 
-  /**
-   * Generates headers for API requests.
-   * Includes 'user-id' to ensure we only touch the current user's data.
-   */
-  const getHeaders = () => ({
+  // Memoize headers so they don't change unless user changes
+  const getHeaders = useMemo(() => ({
     "Content-Type": "application/json",
     "user-id": user?.id,
-  });
+  }), [user?.id]);
 
   // --- 3. Effects (API Calls) ---
 
-  /**
-   * Fetch Jobs Effect
-   * Runs whenever the user searches, changes filter, or logs in.
-   * Includes a debounce (300ms) to prevent spamming the API while typing.
-   */
   useEffect(() => {
-    if (!user) return; // Don't fetch if not logged in
+    if (!user) return;
 
     const fetchJobs = async () => {
-      // Build Query String
       const query = new URLSearchParams();
       if (searchTerm) query.append("search", searchTerm);
-      if (filterStatus && filterStatus !== "All")
-        query.append("status", filterStatus);
+      if (filterStatus && filterStatus !== "All") query.append("status", filterStatus);
 
       try {
-        const res = await fetch(
-          `http://localhost:5000/jobs?${query.toString()}`,
-          { headers: getHeaders() },
-        );
+        const res = await fetch(`${BASE_URL}/jobs?${query.toString()}`, { 
+            headers: getHeaders 
+        });
+        
+        if (!res.ok) throw new Error(`Server responded with ${res.status}`);
+        
         const data = await res.json();
         setJobs(Array.isArray(data) ? data : []);
       } catch (err) {
-        console.error("Error fetching jobs:", err);
+        console.error("❌ Error fetching jobs:", err);
       }
     };
 
     const timeoutId = setTimeout(fetchJobs, 300); // Debounce
-    return () => clearTimeout(timeoutId); // Cleanup on re-render
-  }, [searchTerm, filterStatus, user]);
+    return () => clearTimeout(timeoutId);
+  }, [searchTerm, filterStatus, user, BASE_URL, getHeaders]);
 
   // --- 4. CRUD Handlers ---
 
   const addJob = async (jobData) => {
     try {
-     const API_URL = import.meta.env.VITE_API_URL;
-      // const response = await fetch(`${API_URL}/jobs`);
-      // 2. Use it in the fetch
-      const response = await fetch(`${API_URL}/jobs`, {
+      const response = await fetch(`${BASE_URL}/jobs`, {
         method: "POST",
-        headers: getHeaders(),
+        headers: getHeaders,
         body: JSON.stringify(jobData),
       });
 
-      // Handle Duplicates (HTTP 409)
       if (response.status === 409) {
         const data = await response.json();
-        const confirmUpdate = window.confirm(
-          `Duplicate! Update status of ${data.job.company}?`,
-        );
+        const confirmUpdate = window.confirm(`Duplicate found. Update status of ${data.job.company}?`);
         if (confirmUpdate) updateStatus(data.job.id, jobData.status);
         return;
       }
 
       if (response.ok) {
         const newJob = await response.json();
-        setJobs([newJob, ...jobs]); // Optimistic update
+        setJobs((prev) => [newJob, ...prev]);
         setShowModal(false);
       }
     } catch (error) {
-      console.error(error);
+      console.error("❌ Error adding job:", error);
     }
   };
 
   const updateStatus = async (id, newStatus) => {
-    // 1. Optimistic UI Update (Update state immediately)
-    setJobs(
-      jobs.map((job) => (job.id === id ? { ...job, status: newStatus } : job)),
-    );
+    try {
+      // Optimistic UI Update
+      setJobs(jobs.map((job) => (job.id === id ? { ...job, status: newStatus } : job)));
 
-    // 2. API Call
-    await fetch(`http://localhost:5000/jobs/${id}`, {
-      method: "PUT",
-      headers: getHeaders(),
-      body: JSON.stringify({ status: newStatus }),
-    });
-  };
-
-  const deleteJob = async (id) => {
-    // 1. API Call
-    await fetch(`http://localhost:5000/jobs/${id}`, {
-      method: "DELETE",
-      headers: getHeaders(),
-    });
-
-    // 2. Update UI
-    setJobs(jobs.filter((job) => job.id !== id));
-  };
-
-  const deleteAllJobs = async () => {
-    let url = "http://localhost:5000/jobs/all";
-    if (filterStatus !== "All") url += `?status=${filterStatus}`;
-
-    const res = await fetch(url, { method: "DELETE", headers: getHeaders() });
-
-    if (res.ok) {
-      // If filtering, only remove those visible. If 'All', clear everything.
-      filterStatus === "All"
-        ? setJobs([])
-        : setJobs(jobs.filter((j) => j.status !== filterStatus));
+      await fetch(`${BASE_URL}/jobs/${id}`, {
+        method: "PUT",
+        headers: getHeaders,
+        body: JSON.stringify({ status: newStatus }),
+      });
+    } catch (error) {
+      console.error("❌ Error updating status:", error);
     }
   };
 
-  // --- 5. UI Event Handlers ---
+  const deleteJob = async (id) => {
+    try {
+      const res = await fetch(`${BASE_URL}/jobs/${id}`, {
+        method: "DELETE",
+        headers: getHeaders,
+      });
 
-  // Closes search on 'Enter' or 'Escape'
+      if (res.ok) {
+        setJobs(jobs.filter((job) => job.id !== id));
+      }
+    } catch (error) {
+      console.error("❌ Error deleting job:", error);
+    }
+  };
+
+  const deleteAllJobs = async () => {
+    try {
+      let url = `${BASE_URL}/jobs/all`;
+      if (filterStatus !== "All") url += `?status=${filterStatus}`;
+
+      const res = await fetch(url, { method: "DELETE", headers: getHeaders });
+
+      if (res.ok) {
+        filterStatus === "All"
+          ? setJobs([])
+          : setJobs(jobs.filter((j) => j.status !== filterStatus));
+      }
+    } catch (error) {
+      console.error("❌ Error clearing jobs:", error);
+    }
+  };
+
+  // --- 5. UI Logic ---
+
   const handleSearchKeyDown = (e) => {
     if (e.key === "Enter") setIsSearchOpen(false);
-    if (e.key === "Escape") closeSearch();
+    if (e.key === "Escape") {
+      setIsSearchOpen(false);
+      setSearchTerm("");
+    }
   };
 
-  const closeSearch = () => {
-    setIsSearchOpen(false);
-    setSearchTerm("");
-  };
-
-  // Loading State
-  if (!isLoaded)
-    return <div className="loading-screen">Loading NextRole...</div>;
+  if (!isLoaded) return <div className="loading-screen">Loading NextRole...</div>;
 
   return (
     <>
-      {/* State: User NOT Logged In */}
       <SignedOut>
         <div className="auth-container">
-          <SignIn
-            appearance={{
-              baseTheme: dark,
-              variables: {
-                colorPrimary: "#ffaa00",
-                colorBackground: "#121212",
-                colorText: "#ffaa00",
-                colorInputBackground: "#000000",
-                colorInputText: "#ffaa00",
-                borderRadius: "8px",
-              },
-            }}
-          />
+          <SignIn appearance={{ baseTheme: dark, variables: { colorPrimary: "#ffaa00" } }} />
         </div>
       </SignedOut>
 
-      {/* State: User Logged In */}
       <SignedIn>
         <div className="container">
-          {/* --- HEADER SECTION --- */}
           <Header jobs={jobs} onFilterSelect={setFilterStatus} onHome={goHome}>
             <div className="button-group">
-              {/* Home Button */}
-              <button
-                className="btn-action"
-                onClick={goHome}
-                title="Reset to Home"
-              >
-                <Home size={20} />
-              </button>
-
-              {/* Add Job Button */}
-              <button
-                className="btn-action btn-add"
-                onClick={() => setShowModal(true)}
-              >
+              <button className="btn-action" onClick={goHome} title="Home"><Home size={20} /></button>
+              
+              <button className="btn-action btn-add" onClick={() => setShowModal(true)}>
                 <Plus size={20} /> Add Application
               </button>
 
-              {/* Search Toggle Logic */}
               {!isSearchOpen ? (
-                <button
-                  className="btn-action"
-                  onClick={() => {
-                    setIsSearchOpen(true);
-                    setTimeout(() => searchInputRef.current?.focus(), 100);
-                  }}
-                >
+                <button className="btn-action" onClick={() => {
+                  setIsSearchOpen(true);
+                  setTimeout(() => searchInputRef.current?.focus(), 100);
+                }}>
                   <Search size={20} /> Search
                 </button>
               ) : (
@@ -247,31 +195,24 @@ function App() {
                     <input
                       ref={searchInputRef}
                       className="input-clean"
-                      placeholder="Type & Press Enter..."
+                      placeholder="Search company or role..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                       onKeyDown={handleSearchKeyDown}
                     />
                   </div>
-                  <button onClick={closeSearch} className="btn-close-circle">
+                  <button onClick={() => {setIsSearchOpen(false); setSearchTerm("");}} className="btn-close-circle">
                     <X size={18} />
                   </button>
                 </div>
               )}
 
-              {/* User Profile Bubble */}
               <div style={{ marginLeft: "10px" }}>
-                <UserButton
-                  appearance={{
-                    baseTheme: dark,
-                    variables: { colorPrimary: "#ffaa00" },
-                  }}
-                />
+                <UserButton appearance={{ baseTheme: dark, variables: { colorPrimary: "#ffaa00" } }} />
               </div>
             </div>
           </Header>
 
-          {/* --- MAIN TABLE SECTION --- */}
           <JobTable
             jobs={jobs}
             onDelete={deleteJob}
@@ -279,19 +220,12 @@ function App() {
             onDeleteAll={deleteAllJobs}
           />
 
-          {/* --- MODAL SECTION --- */}
           {showModal && (
             <div className="modal-overlay" onClick={() => setShowModal(false)}>
-              <div
-                className="modal-content"
-                onClick={(e) => e.stopPropagation()}
-              >
+              <div className="modal-content" onClick={(e) => e.stopPropagation()}>
                 <div className="modal-header">
                   <h2 className="modal-title">New Application</h2>
-                  <button
-                    onClick={() => setShowModal(false)}
-                    className="btn-close-section"
-                  >
+                  <button onClick={() => setShowModal(false)} className="btn-close-section">
                     <X size={24} />
                   </button>
                 </div>
