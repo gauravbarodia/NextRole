@@ -1,0 +1,13 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Environment variables
+.env
+
+# React Production Build
+dist/
+build/
+
+# System files
+.DS_Store
