@@ -11,9 +11,11 @@ app.use(express.json());
 // --- FIX 2: Add "https://" to the Railway URL ---
 app.use(cors({
   origin: [
-    "http://localhost:5173",                  
-    "https://frontend-production-49cc.up.railway.app"
+    "http://localhost:5173", // For local testing
+    "https://frontend-production-49cc.up.railway.app" // Your LIVE Frontend
   ],
+  methods: ["GET", "POST", "PUT", "DELETE"],
+  allowedHeaders: ["Content-Type", "user-id"], // Critical for your custom header
   credentials: true
 }));
 
