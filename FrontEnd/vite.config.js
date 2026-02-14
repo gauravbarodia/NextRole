@@ -5,7 +5,7 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],preview: {
     allowedHosts: [
-      "frontend-production-49cc.up.railway.app" 
+      "nextrole.up.railway.app" 
     ]
   }
 })
