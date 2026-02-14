@@ -12,7 +12,7 @@ app.use(express.json());
 app.use(cors({
   origin: [
     "http://localhost:5173", // For local testing
-    "https://frontend-production-49cc.up.railway.app" // Your LIVE Frontend
+    "https://nextrole.up.railway.app" // Your LIVE Frontend
   ],
   methods: ["GET", "POST", "PUT", "DELETE"],
   allowedHeaders: ["Content-Type", "user-id"], // Critical for your custom header
