@@ -15,7 +15,7 @@ function Header({ jobs, onFilterSelect, onHome, children }) {
   // Ensure jobs is an array to prevent crashes
   const safeJobs = Array.isArray(jobs) ? jobs : []; 
 
-  // Calculate Counts dynamically
+  // Calculate Counts dynamically based on current job list
   const stats = {
     Total: safeJobs.length,
     Interview: safeJobs.filter(j => j.status === 'Interview').length,
@@ -31,6 +31,7 @@ function Header({ jobs, onFilterSelect, onHome, children }) {
           onClick={onHome} 
           className="app-logo"
           title="Return Home"
+          style={{ cursor: 'pointer' }}
         >
           <Briefcase size={32} strokeWidth={2.5} />
           NextRole
@@ -43,25 +44,25 @@ function Header({ jobs, onFilterSelect, onHome, children }) {
 
       {/* Stats Dashboard */}
       <div className="stats-row">
-        {/* Total Applications */}
+        {/* Total Applications - Resets filter to 'All' */}
         <div className="stat-card card-applications" onClick={() => onFilterSelect('All')}>
           <div className="stat-count">{stats.Total}</div>
           <div className="stat-label">Applications</div>
         </div>
 
-        {/* Interviews */}
+        {/* Interviews - Filters to 'Interview' */}
          <div className="stat-card card-applications" onClick={() => onFilterSelect('Interview')}>
           <div className="stat-count">{stats.Interview}</div>
           <div className="stat-label">Interviews</div>
         </div>
 
-        {/* Offers (Green Style) */}
+        {/* Offers (Green Style) - Filters to 'Offer' */}
         <div className="stat-card card-offer" onClick={() => onFilterSelect('Offer')}>
           <div className="stat-count">{stats.Offer}</div>
           <div className="stat-label">Offers</div>
         </div>
 
-        {/* Rejections (Red Style) */}
+        {/* Rejections (Red Style) - Filters to 'Rejected' */}
         <div className="stat-card card-rejected" onClick={() => onFilterSelect('Rejected')}>
           <div className="stat-count">{stats.Rejected}</div>
           <div className="stat-label">Rejected</div>
@@ -70,4 +71,5 @@ function Header({ jobs, onFilterSelect, onHome, children }) {
     </div>
   );
 }
+
 export default Header;

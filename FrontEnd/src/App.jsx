@@ -1,13 +1,23 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
-import { Search, X, Plus, Home } from "lucide-react";
-import {
-  SignedIn,
-  SignedOut,
-  SignIn,
-  UserButton,
-  useUser,
-} from "@clerk/clerk-react";
-import { dark } from "@clerk/themes";
+import React, { useState, useEffect, useRef } from "react";
+import { Search, X, Plus, Home, LogOut, Trash2 } from "lucide-react"; // Added Trash2 import
+
+// --- FIREBASE IMPORTS ---
+import { db, auth, googleProvider } from "./firebase";
+import { 
+  signInWithPopup, 
+  signOut, 
+  onAuthStateChanged 
+} from "firebase/auth";
+import { 
+  collection, 
+  addDoc, 
+  query, 
+  where, 
+  getDocs, 
+  doc, 
+  deleteDoc, 
+  updateDoc
+} from "firebase/firestore";
 
 // Component Imports
 import Header from "./components/Header";
@@ -18,11 +28,9 @@ import JobTable from "./components/JobTable";
 import "./App.css";
 
 function App() {
-  // --- 1. Configuration & Authentication ---
-  const { user, isLoaded } = useUser();
-  
-  // Use Railway URL if available, otherwise fallback to local for development
-  const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+  // --- 1. Authentication State ---
+  const [user, setUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
 
   // Data State
   const [jobs, setJobs] = useState([]);
@@ -32,10 +40,85 @@ function App() {
   const [filterStatus, setFilterStatus] = useState("All");
   const [showModal, setShowModal] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  
+  // Delete Modal State
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [jobToDelete, setJobToDelete] = useState(null); // Stores ID or 'ALL'
 
   const searchInputRef = useRef(null);
 
-  // --- 2. Helper Functions ---
+  // --- 2. Auth & Data Effects ---
+
+  // Listen for Authentication Changes
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setAuthLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Fetch Jobs
+  useEffect(() => {
+    if (!user) return;
+
+    const fetchJobs = async () => {
+      try {
+        let q = query(
+          collection(db, "applications"), 
+          where("user_id", "==", user.uid)
+        );
+
+        const querySnapshot = await getDocs(q);
+        let data = querySnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+
+        // Sort by Date (Client Side)
+        data.sort((a, b) => new Date(b.date_applied) - new Date(a.date_applied));
+
+        // Filter by Search
+        if (searchTerm) {
+          const lowerTerm = searchTerm.toLowerCase();
+          data = data.filter(job => 
+            job.company.toLowerCase().includes(lowerTerm) || 
+            job.role.toLowerCase().includes(lowerTerm)
+          );
+        }
+
+        // Filter by Status
+        if (filterStatus !== "All") {
+          data = data.filter(job => job.status === filterStatus);
+        }
+
+        setJobs(data);
+      } catch (err) {
+        console.error("❌ Error fetching jobs:", err);
+      }
+    };
+
+    fetchJobs();
+  }, [user, searchTerm, filterStatus]);
+
+  // --- 3. Helper Functions ---
+
+  const handleLogin = async () => {
+    try {
+      await signInWithPopup(auth, googleProvider);
+    } catch (error) {
+      console.error("Login Failed:", error);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      setJobs([]); 
+    } catch (error) {
+      console.error("Logout Failed:", error);
+    }
+  };
 
   const goHome = () => {
     setSearchTerm("");
@@ -43,62 +126,21 @@ function App() {
     setIsSearchOpen(false);
   };
 
-  // Memoize headers so they don't change unless user changes
-  const getHeaders = useMemo(() => ({
-    "Content-Type": "application/json",
-    "user-id": user?.id,
-  }), [user?.id]);
-
-  // --- 3. Effects (API Calls) ---
-
-  useEffect(() => {
-    if (!user) return;
-
-    const fetchJobs = async () => {
-      const query = new URLSearchParams();
-      if (searchTerm) query.append("search", searchTerm);
-      if (filterStatus && filterStatus !== "All") query.append("status", filterStatus);
-
-      try {
-        const res = await fetch(`${BASE_URL}/jobs?${query.toString()}`, { 
-            headers: getHeaders 
-        });
-        
-        if (!res.ok) throw new Error(`Server responded with ${res.status}`);
-        
-        const data = await res.json();
-        setJobs(Array.isArray(data) ? data : []);
-      } catch (err) {
-        console.error("❌ Error fetching jobs:", err);
-      }
-    };
-
-    const timeoutId = setTimeout(fetchJobs, 300); // Debounce
-    return () => clearTimeout(timeoutId);
-  }, [searchTerm, filterStatus, user, BASE_URL, getHeaders]);
-
   // --- 4. CRUD Handlers ---
 
   const addJob = async (jobData) => {
+    if (!user) return;
     try {
-      const response = await fetch(`${BASE_URL}/jobs`, {
-        method: "POST",
-        headers: getHeaders,
-        body: JSON.stringify(jobData),
-      });
+      const newJob = {
+        ...jobData,
+        status: "Applied",
+        date_applied: new Date().toISOString(),
+        user_id: user.uid 
+      };
 
-      if (response.status === 409) {
-        const data = await response.json();
-        const confirmUpdate = window.confirm(`Duplicate found. Update status of ${data.job.company}?`);
-        if (confirmUpdate) updateStatus(data.job.id, jobData.status);
-        return;
-      }
-
-      if (response.ok) {
-        const newJob = await response.json();
-        setJobs((prev) => [newJob, ...prev]);
-        setShowModal(false);
-      }
+      const docRef = await addDoc(collection(db, "applications"), newJob);
+      setJobs(prev => [{ ...newJob, id: docRef.id }, ...prev]);
+      setShowModal(false);
     } catch (error) {
       console.error("❌ Error adding job:", error);
     }
@@ -106,48 +148,47 @@ function App() {
 
   const updateStatus = async (id, newStatus) => {
     try {
-      // Optimistic UI Update
       setJobs(jobs.map((job) => (job.id === id ? { ...job, status: newStatus } : job)));
-
-      await fetch(`${BASE_URL}/jobs/${id}`, {
-        method: "PUT",
-        headers: getHeaders,
-        body: JSON.stringify({ status: newStatus }),
-      });
+      const jobRef = doc(db, "applications", id);
+      await updateDoc(jobRef, { status: newStatus });
     } catch (error) {
       console.error("❌ Error updating status:", error);
     }
   };
 
-  const deleteJob = async (id) => {
-    try {
-      const res = await fetch(`${BASE_URL}/jobs/${id}`, {
-        method: "DELETE",
-        headers: getHeaders,
-      });
+  // --- NEW: DELETE HANDLERS ---
 
-      if (res.ok) {
-        setJobs(jobs.filter((job) => job.id !== id));
-      }
-    } catch (error) {
-      console.error("❌ Error deleting job:", error);
-    }
+  // Step 1: Open Modal for Single Delete
+  const confirmDelete = (id) => {
+    setJobToDelete(id);
+    setShowDeleteModal(true);
   };
 
-  const deleteAllJobs = async () => {
+  // Step 1: Open Modal for Delete All
+  const confirmDeleteAll = () => {
+    setJobToDelete('ALL');
+    setShowDeleteModal(true);
+  };
+
+  // Step 2: Actually Execute Delete (Runs when user clicks "Yes")
+  const executeDelete = async () => {
+    if (!user) return;
+    
     try {
-      let url = `${BASE_URL}/jobs/all`;
-      if (filterStatus !== "All") url += `?status=${filterStatus}`;
-
-      const res = await fetch(url, { method: "DELETE", headers: getHeaders });
-
-      if (res.ok) {
-        filterStatus === "All"
-          ? setJobs([])
-          : setJobs(jobs.filter((j) => j.status !== filterStatus));
+      if (jobToDelete === 'ALL') {
+        const deletePromises = jobs.map(job => deleteDoc(doc(db, "applications", job.id)));
+        await Promise.all(deletePromises);
+        setJobs([]);
+      } else {
+        await deleteDoc(doc(db, "applications", jobToDelete));
+        setJobs(jobs.filter((job) => job.id !== jobToDelete));
       }
     } catch (error) {
-      console.error("❌ Error clearing jobs:", error);
+      console.error("❌ Error deleting:", error);
+    } finally {
+      // Close Modal & Reset
+      setShowDeleteModal(false);
+      setJobToDelete(null);
     }
   };
 
@@ -161,17 +202,21 @@ function App() {
     }
   };
 
-  if (!isLoaded) return <div className="loading-screen">Loading NextRole...</div>;
+  if (authLoading) return <div className="loading-screen">Loading NextRole...</div>;
 
   return (
     <>
-      <SignedOut>
+      {!user ? (
         <div className="auth-container">
-          <SignIn appearance={{ baseTheme: dark, variables: { colorPrimary: "#ffaa00" } }} />
+          <div className="login-card" style={{ textAlign: 'center', color: '#ffaa00' }}>
+            <h1>NextRole</h1>
+            <p style={{ color: '#888', marginBottom: '20px' }}>Track your job applications simply.</p>
+            <button className="btn-action" onClick={handleLogin} style={{ margin: '0 auto' }}>
+              Sign In with Google
+            </button>
+          </div>
         </div>
-      </SignedOut>
-
-      <SignedIn>
+      ) : (
         <div className="container">
           <Header jobs={jobs} onFilterSelect={setFilterStatus} onHome={goHome}>
             <div className="button-group">
@@ -207,19 +252,33 @@ function App() {
                 </div>
               )}
 
-              <div style={{ marginLeft: "10px" }}>
-                <UserButton appearance={{ baseTheme: dark, variables: { colorPrimary: "#ffaa00" } }} />
+              <div style={{ marginLeft: "10px", display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <img 
+                  src={user.photoURL} 
+                  alt="Profile" 
+                  style={{ width: 32, height: 32, borderRadius: '50%', border: '2px solid #ffaa00' }} 
+                />
+                <button 
+                  onClick={handleLogout} 
+                  className="btn-close-circle" 
+                  title="Sign Out"
+                  style={{ width: 32, height: 32 }}
+                >
+                  <LogOut size={16} />
+                </button>
               </div>
             </div>
           </Header>
 
+          {/* Pass the CONFIRM functions, not the EXECUTE functions */}
           <JobTable
             jobs={jobs}
-            onDelete={deleteJob}
+            onDelete={confirmDelete}
             onStatusChange={updateStatus}
-            onDeleteAll={deleteAllJobs}
+            onDeleteAll={confirmDeleteAll}
           />
 
+          {/* ADD JOB MODAL */}
           {showModal && (
             <div className="modal-overlay" onClick={() => setShowModal(false)}>
               <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -233,8 +292,56 @@ function App() {
               </div>
             </div>
           )}
+
+          {/* NEW: DELETE CONFIRMATION MODAL */}
+          {showDeleteModal && (
+            <div className="modal-overlay" onClick={() => setShowDeleteModal(false)}>
+              <div 
+                className="modal-content" 
+                style={{ maxWidth: '400px', textAlign: 'center', borderColor: '#ef4444' }} 
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div style={{ marginBottom: '20px', color: '#ef4444' }}>
+                   <Trash2 size={48} style={{ margin: '0 auto' }} />
+                </div>
+                <h2 className="modal-title" style={{ fontSize: '1.5rem', marginBottom: '10px' }}>
+                  Are you sure?
+                </h2>
+                <p style={{ color: '#a1a1aa', marginBottom: '30px', fontSize: '1rem' }}>
+                  {jobToDelete === 'ALL' 
+                    ? "This will permanently delete ALL applications in this list."
+                    : "You are about to remove this application permanently."}
+                </p>
+                
+                <div style={{ display: 'flex', gap: '15px', justifyContent: 'center' }}>
+                  <button 
+                    onClick={() => setShowDeleteModal(false)} 
+                    className="btn-action"
+                    style={{ border: '1px solid #525252', color: '#d4d4d8', width: '100px', justifyContent: 'center' }}
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={executeDelete} 
+                    className="btn-action"
+                    style={{ 
+                      background: '#ef4444', 
+                      borderColor: '#ef4444', 
+                      color: '#fff', 
+                      width: '100px', 
+                      justifyContent: 'center',
+                      boxShadow: '0 0 15px rgba(239, 68, 68, 0.4)'
+                    }}
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
         </div>
-      </SignedIn>
+      )}
     </>
   );
 }

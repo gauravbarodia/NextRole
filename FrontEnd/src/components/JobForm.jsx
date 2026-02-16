@@ -1,29 +1,21 @@
 import React, { useState } from 'react';
 import { PlusCircle } from 'lucide-react';
 
-/**
- * JobForm Component
- * * Simple form to add a new job application.
- * Uses local state to manage input before submitting to the parent.
- */
 function JobForm({ onAdd }) {
   const [form, setForm] = useState({ company: '', role: '' });
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    // Basic Validation
     if (!form.company || !form.role) return;
     
-    // Default new jobs to 'Applied' status
-    onAdd({ ...form, status: 'Applied' });
+    // Pass only the raw data; App.jsx handles status & date
+    onAdd(form);
     
-    // Reset Form
     setForm({ company: '', role: '' });
   };
 
   return (
     <form onSubmit={handleSubmit} className="form-stack">
-      {/* Company Input */}
       <div>
         <label className="input-label">Company</label>
         <input 
@@ -35,7 +27,6 @@ function JobForm({ onAdd }) {
         />
       </div>
 
-      {/* Role Input */}
       <div>
         <label className="input-label">Role</label>
         <input 
