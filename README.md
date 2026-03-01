@@ -1,6 +1,6 @@
 NextRole: Job Application Tracking Dashboard 🚀
 NextRole is a responsive, React-based dashboard designed to provide job seekers with a centralized platform to track applications, monitor interview progress, and organize job offers.
-LIVE LINK-https://nextrole-249a9.web.app/
+
 ✨ Features
 Secure Authentication: Seamless user login powered by Firebase Authentication using the Google Auth Provider.
 
@@ -20,3 +20,4 @@ Frontend: React, Custom CSS
 Icons: Lucide React
 
 Backend/Database: Firebase Authentication, Cloud Firestore
+LIVE LINK-https://nextrole-249a9.web.app/
